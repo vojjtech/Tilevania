@@ -4,30 +4,36 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    [SerializeField] float moveSpeed = 5f;
-    [SerializeField] float jumpSpeed = 3f;
+    [SerializeField] float moveSpeed = 7f;
+    [SerializeField] float jumpSpeed = 5f;
+    [SerializeField] float climbSpeed = 3f;
 
-    [SerializeField] TextController textScript;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     Vector2 moveInput;
-    Rigidbody2D _rb;
-    Animator _anim;
+    Rigidbody2D myRigidbody;
+    Animator myAnimator;
+    CapsuleCollider2D myBodyCollider;
+    float gravityScaleAtStart;
+    BoxCollider2D myFeetCollider;
 
-    bool isGrounded = true;
     bool isAlive = true;
 
     void Start()
     {
-        _rb = GetComponent<Rigidbody2D>();
-        _anim = GetComponent<Animator>();
+        myRigidbody = GetComponent<Rigidbody2D>();
+        myAnimator = GetComponent<Animator>();
+        myBodyCollider = GetComponent<CapsuleCollider2D>();
+        gravityScaleAtStart = myRigidbody.gravityScale;
+        myFeetCollider = GetComponent<BoxCollider2D>();
     }
 
     // Update is called once per frame
     void Update()
     {
+        if (!isAlive) return;
         Run();
         FlipSprite();
+        ClimbLadder();
     }
 
     void OnMove(InputValue value)
@@ -37,55 +43,56 @@ public class PlayerController : MonoBehaviour
 
     void OnJump(InputValue value)
     {
-        if (value.isPressed && isGrounded)
+        if (!myFeetCollider.IsTouchingLayers(LayerMask.GetMask("Cave"))) { return; }
+        if (value.isPressed)
         {
-            _rb.linearVelocity += new Vector2(0f, jumpSpeed);
+            // do stuff
+            myRigidbody.linearVelocity += new Vector2(0f, jumpSpeed);
         }
     }
 
+
     void Run()
     {
-        Vector2 playerVelocity = new Vector2(moveInput.x * moveSpeed, _rb.linearVelocity.y);
-        _rb.linearVelocity = playerVelocity;
-        bool hasHorizontalSpeed = Mathf.Abs(_rb.linearVelocity.x) > Mathf.Epsilon;
-        _anim.SetBool("IsRunning", hasHorizontalSpeed);
+        Vector2 playerVelocity = new Vector2(moveInput.x * moveSpeed, myRigidbody.linearVelocity.y);
+        myRigidbody.linearVelocity = playerVelocity;
+        bool hasHorizontalSpeed = Mathf.Abs(myRigidbody.linearVelocity.x) > Mathf.Epsilon;
+        myAnimator.SetBool("IsRunning", hasHorizontalSpeed);
     }
 
     void FlipSprite()
     {
-        bool hasHorizontalSpeed = Mathf.Abs(_rb.linearVelocity.x) > Mathf.Epsilon;
+        bool hasHorizontalSpeed = Mathf.Abs(myRigidbody.linearVelocity.x) > Mathf.Epsilon;
         if (hasHorizontalSpeed)
         {
-            transform.localScale = new Vector2(Mathf.Sign(_rb.linearVelocity.x), 1f);
+            transform.localScale = new Vector2(Mathf.Sign(myRigidbody.linearVelocity.x), 1f);
         }
+    }
+
+    void ClimbLadder()
+    {
+        if (!myFeetCollider.IsTouchingLayers(LayerMask.GetMask("Ladders")))
+        {
+            myRigidbody.gravityScale = gravityScaleAtStart;
+            myAnimator.SetBool("isClimbing", false);
+            return;
+        }
+        myRigidbody.gravityScale = 0f;
+        Vector2 climbVelocity = new Vector2(myRigidbody.linearVelocity.x, moveInput.y * climbSpeed);
+        myRigidbody.linearVelocity = climbVelocity;
+
+        bool hasVerticalSpeed = Mathf.Abs(myRigidbody.linearVelocity.y) > Mathf.Epsilon;
+        myAnimator.SetBool("isClimbing", hasVerticalSpeed);
     }
 
     void OnTriggerEnter2D(Collider2D collision)
     {
-        if (collision.gameObject.CompareTag("Cave"))
-        {
-            isGrounded = true;
-        }
-        else if (collision.gameObject.CompareTag("Enemy") && isAlive)
+        if (collision.gameObject.CompareTag("Enemy") && isAlive)
         {
             isAlive = false;
-
-            if (textScript != null)
-            {
-                textScript.ToogleText();
-            }
 
             Destroy(gameObject);
         }
     }
-
-    void OnTriggerExit2D(Collider2D collision)
-    {
-        if (collision.gameObject.CompareTag("Cave"))
-        {
-            isGrounded = false;
-        }
-    }
-
 
 }
