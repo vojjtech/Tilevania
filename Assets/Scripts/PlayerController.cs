@@ -1,13 +1,15 @@
-using System;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerController : MonoBehaviour
+public class PlayerMovement : MonoBehaviour
 {
-    [SerializeField] float moveSpeed = 7f;
+    [SerializeField] float moveSpeed = 10f;
     [SerializeField] float jumpSpeed = 5f;
-    [SerializeField] float climbSpeed = 3f;
-
+    [SerializeField] float climbSpeed = 5f;
+    [SerializeField] Vector2 deathKick = new Vector2(8f, 10f);
+    [SerializeField] GameObject bullet;
+    [SerializeField] Transform gun;
 
     Vector2 moveInput;
     Rigidbody2D myRigidbody;
@@ -27,23 +29,24 @@ public class PlayerController : MonoBehaviour
         myFeetCollider = GetComponent<BoxCollider2D>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        if (!isAlive) return;
+        if (!isAlive) { return; }
         Run();
         FlipSprite();
         ClimbLadder();
+        Die();
     }
 
     void OnMove(InputValue value)
     {
+        if (!isAlive) { return; }
         moveInput = value.Get<Vector2>();
     }
 
     void OnJump(InputValue value)
     {
-        if (!myFeetCollider.IsTouchingLayers(LayerMask.GetMask("Cave"))) { return; }
+        if (!myFeetCollider.IsTouchingLayers(LayerMask.GetMask("Ground"))) { return; }
         if (value.isPressed)
         {
             // do stuff
@@ -51,13 +54,13 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-
     void Run()
     {
         Vector2 playerVelocity = new Vector2(moveInput.x * moveSpeed, myRigidbody.linearVelocity.y);
         myRigidbody.linearVelocity = playerVelocity;
         bool hasHorizontalSpeed = Mathf.Abs(myRigidbody.linearVelocity.x) > Mathf.Epsilon;
-        myAnimator.SetBool("IsRunning", hasHorizontalSpeed);
+        myAnimator.SetBool("isRunning", hasHorizontalSpeed);
+
     }
 
     void FlipSprite()
@@ -71,7 +74,7 @@ public class PlayerController : MonoBehaviour
 
     void ClimbLadder()
     {
-        if (!myFeetCollider.IsTouchingLayers(LayerMask.GetMask("Ladders")))
+        if (!myFeetCollider.IsTouchingLayers(LayerMask.GetMask("Climbing")))
         {
             myRigidbody.gravityScale = gravityScaleAtStart;
             myAnimator.SetBool("isClimbing", false);
@@ -85,13 +88,27 @@ public class PlayerController : MonoBehaviour
         myAnimator.SetBool("isClimbing", hasVerticalSpeed);
     }
 
-    void OnTriggerEnter2D(Collider2D collision)
+    void OnAttack(InputValue value)
     {
-        if (collision.gameObject.CompareTag("Enemy") && isAlive)
+        if (!isAlive) { return; }
+        Instantiate(bullet, gun.position, transform.rotation);
+    }
+
+    void Die()
+    {
+        if (myBodyCollider.IsTouchingLayers(LayerMask.GetMask("Hazards")))
         {
             isAlive = false;
+            myAnimator.SetTrigger("Dying");
+            myRigidbody.linearVelocity = deathKick;
+            FindAnyObjectByType<GameSession>().ProcessPlayerDeath();
+        }
 
-            Destroy(gameObject);
+        if (myBodyCollider.IsTouchingLayers(LayerMask.GetMask("Enemies")))
+        {
+            
+            FindAnyObjectByType<GameSession>().ProcessPlayerDmg();
+            
         }
     }
 
